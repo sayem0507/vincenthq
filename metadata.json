@@ -1,7 +1,8 @@
 {
-  "name": "Remix: Remix: Remix: Remix: GrowthGrid",
+  "name": "GrowthGrid",
   "description": "Gamified project management and growth software for teams.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "display-capture"
   ]
 }
