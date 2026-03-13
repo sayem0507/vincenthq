@@ -26,7 +26,7 @@ export default function FeedPage() {
     if (!text || !text.trim() || !user) return;
 
     const newComment = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       userId: user.id,
       userName: user.name,
       userAvatar: user.avatar,
@@ -67,7 +67,7 @@ export default function FeedPage() {
     if (!newPostText.trim() && !newPostImage) return;
     
     socket?.emit('add_daily_update', {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       userId: user?.id,
       userName: user?.name,
       text: newPostText,

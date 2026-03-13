@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const role = promoCode === 'sayemking' ? 'admin' : 'user';
     
     const hash = bcrypt.hashSync(password, 10);
-    const id = Math.random().toString(36).substr(2, 9);
+    const id = crypto.randomUUID();
     const avatar = `https://i.pravatar.cc/150?u=${id}`;
     
     db.prepare('INSERT INTO users (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)').run(

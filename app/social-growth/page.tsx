@@ -99,7 +99,7 @@ export default function SocialGrowthTracker() {
     if (!newTargetName || !user) return;
     
     const newLead: SocialLead = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       name: newTargetName,
       platform: newTargetPlatform,
       status: 'Target Identified',

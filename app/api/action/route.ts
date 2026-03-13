@@ -102,12 +102,12 @@ export async function POST(req: Request) {
         const existingPost = db.prepare('SELECT id FROM posts WHERE id = ?').get(payload.id);
         const postCreatedAt = payload.createdAt || new Date().toISOString();
         if (existingPost) {
-          db.prepare('UPDATE posts SET title=?, platform=?, status=?, author=?, userId=?, userName=?, views=?, engagement=?, createdAt=?, scheduledFor=?, telegramJoins=?, impressions=? WHERE id=?').run(
-            payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0, payload.id
+          db.prepare('UPDATE posts SET title=?, platform=?, status=?, author=?, userId=?, userName=?, views=?, likes=?, shares=?, comments=?, engagement=?, createdAt=?, scheduledFor=?, telegramJoins=?, impressions=?, linkClicks=?, watchTime=?, mainMetric=?, optionalData=? WHERE id=?').run(
+            payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.likes || 0, payload.shares || 0, payload.comments || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0, payload.linkClicks || 0, payload.watchTime || 0, payload.mainMetric || '', payload.optionalData || '', payload.id
           );
         } else {
-          db.prepare('INSERT INTO posts (id, title, platform, status, author, userId, userName, views, engagement, createdAt, scheduledFor, telegramJoins, impressions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-            payload.id, payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0
+          db.prepare('INSERT INTO posts (id, title, platform, status, author, userId, userName, views, likes, shares, comments, engagement, createdAt, scheduledFor, telegramJoins, impressions, linkClicks, watchTime, mainMetric, optionalData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+            payload.id, payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.likes || 0, payload.shares || 0, payload.comments || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0, payload.linkClicks || 0, payload.watchTime || 0, payload.mainMetric || '', payload.optionalData || ''
           );
         }
         break;
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
 
       case 'create_user':
         const hash = bcrypt.hashSync(payload.password, 10);
-        const id = Math.random().toString(36).substr(2, 9);
+        const id = crypto.randomUUID();
         const avatar = `https://i.pravatar.cc/150?u=${id}`;
         db.prepare('INSERT INTO users (id, name, email, password, role, avatar) VALUES (?, ?, ?, ?, ?, ?)').run(
           id, payload.name, payload.email, hash, payload.role || 'user', avatar

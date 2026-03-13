@@ -14,10 +14,10 @@ export async function GET(req: Request) {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
 
     // Update lastActive heartbeat
-    db.prepare('UPDATE users SET lastActive = ? WHERE id = ?').run(new Date().toISOString(), decoded.userId);
+    db.prepare('UPDATE users SET lastActive = ? WHERE id = ?').run(new Date().toISOString(), decoded.id);
 
     const tasks = db.prepare('SELECT * FROM tasks').all().map((t: any) => ({
       ...t,

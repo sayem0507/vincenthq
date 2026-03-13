@@ -64,11 +64,18 @@ db.exec(`
     userId TEXT,
     userName TEXT,
     views INTEGER DEFAULT 0,
+    likes INTEGER DEFAULT 0,
+    shares INTEGER DEFAULT 0,
+    comments INTEGER DEFAULT 0,
     engagement TEXT,
     createdAt TEXT,
     scheduledFor TEXT,
     telegramJoins INTEGER DEFAULT 0,
-    impressions INTEGER DEFAULT 0
+    impressions INTEGER DEFAULT 0,
+    linkClicks INTEGER DEFAULT 0,
+    watchTime INTEGER DEFAULT 0,
+    mainMetric TEXT,
+    optionalData TEXT
   );
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -133,6 +140,13 @@ try { db.exec("ALTER TABLE documents ADD COLUMN fileUrl TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE messages ADD COLUMN channel TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE daily_updates ADD COLUMN likes TEXT DEFAULT '[]'"); } catch (e) {}
 try { db.exec("ALTER TABLE daily_updates ADD COLUMN comments TEXT DEFAULT '[]'"); } catch (e) {}
+try { db.exec("ALTER TABLE posts ADD COLUMN likes INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE posts ADD COLUMN shares INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE posts ADD COLUMN comments INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE posts ADD COLUMN linkClicks INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE posts ADD COLUMN watchTime INTEGER DEFAULT 0"); } catch (e) {}
+try { db.exec("ALTER TABLE posts ADD COLUMN mainMetric TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE posts ADD COLUMN optionalData TEXT"); } catch (e) {}
 
 // Insert default settings if not exists
 const defaultSettings = [

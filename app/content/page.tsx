@@ -10,13 +10,22 @@ import { useAppContext } from '@/lib/context';
 type Post = {
   id: string;
   title: string;
-  platform: 'X' | 'Instagram';
+  platform: 'X' | 'Instagram' | 'Facebook' | 'YouTube';
   status: 'Draft' | 'Scheduled' | 'Posted';
   author: string;
+  userId?: string;
+  userName?: string;
   views?: number;
+  likes?: number;
+  shares?: number;
+  comments?: number;
   engagement?: string;
   telegramJoins?: number;
   impressions?: number;
+  linkClicks?: number;
+  watchTime?: number;
+  mainMetric?: string;
+  optionalData?: string;
 };
 
 const initialPosts: Post[] = [
@@ -61,6 +70,13 @@ export default function ContentEngine() {
   const [logImpressions, setLogImpressions] = useState('');
   const [logEngagement, setLogEngagement] = useState('');
   const [logTelegramJoins, setLogTelegramJoins] = useState('');
+  const [logLikes, setLogLikes] = useState('');
+  const [logShares, setLogShares] = useState('');
+  const [logComments, setLogComments] = useState('');
+  const [logLinkClicks, setLogLinkClicks] = useState('');
+  const [logWatchTime, setLogWatchTime] = useState('');
+  const [logMainMetric, setLogMainMetric] = useState('');
+  const [logOptionalData, setLogOptionalData] = useState('');
 
   const handleAddDraft = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +91,8 @@ export default function ContentEngine() {
       platform: newDraftPlatform,
       status: 'Draft',
       author: user.name,
+      userId: user.id,
+      userName: user.name,
     };
     
     socket?.emit('update_post', newPost);
@@ -97,10 +115,19 @@ export default function ContentEngine() {
         platform: 'X',
         status: 'Posted',
         author: user?.name || 'Unknown',
+        userId: user?.id,
+        userName: user?.name,
         views: Number(logViews),
         impressions: Number(logImpressions),
         engagement: logEngagement,
-        telegramJoins: Number(logTelegramJoins)
+        telegramJoins: Number(logTelegramJoins),
+        likes: Number(logLikes),
+        shares: Number(logShares),
+        comments: Number(logComments),
+        linkClicks: Number(logLinkClicks),
+        watchTime: Number(logWatchTime),
+        mainMetric: logMainMetric,
+        optionalData: logOptionalData
       };
       socket?.emit('update_post', newPost);
     } else {
@@ -112,7 +139,14 @@ export default function ContentEngine() {
           views: Number(logViews),
           impressions: Number(logImpressions),
           engagement: logEngagement,
-          telegramJoins: Number(logTelegramJoins)
+          telegramJoins: Number(logTelegramJoins),
+          likes: Number(logLikes),
+          shares: Number(logShares),
+          comments: Number(logComments),
+          linkClicks: Number(logLinkClicks),
+          watchTime: Number(logWatchTime),
+          mainMetric: logMainMetric,
+          optionalData: logOptionalData
         });
       }
     }
@@ -128,6 +162,13 @@ export default function ContentEngine() {
     setLogImpressions('');
     setLogEngagement('');
     setLogTelegramJoins('');
+    setLogLikes('');
+    setLogShares('');
+    setLogComments('');
+    setLogLinkClicks('');
+    setLogWatchTime('');
+    setLogMainMetric('');
+    setLogOptionalData('');
     alert('Post logged and analytics updated! +10 XP awarded.');
   };
 
@@ -452,6 +493,8 @@ export default function ContentEngine() {
             >
               <option value="X" className="bg-slate-900">X (Twitter)</option>
               <option value="Instagram" className="bg-slate-900">Instagram</option>
+              <option value="Facebook" className="bg-slate-900">Facebook</option>
+              <option value="YouTube" className="bg-slate-900">YouTube</option>
             </select>
           </div>
           <Button type="submit" className="w-full mt-6" isLoading={isSavingDraft}>
@@ -506,6 +549,50 @@ export default function ContentEngine() {
           </div>
           <div className="grid grid-cols-2 gap-5">
             <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Likes</label>
+              <input 
+                type="number" 
+                value={logLikes}
+                onChange={(e) => setLogLikes(e.target.value)}
+                placeholder="0" 
+                className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Shares</label>
+              <input 
+                type="number" 
+                value={logShares}
+                onChange={(e) => setLogShares(e.target.value)}
+                placeholder="0" 
+                className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600" 
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-5">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Comments</label>
+              <input 
+                type="number" 
+                value={logComments}
+                onChange={(e) => setLogComments(e.target.value)}
+                placeholder="0" 
+                className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Link Clicks</label>
+              <input 
+                type="number" 
+                value={logLinkClicks}
+                onChange={(e) => setLogLinkClicks(e.target.value)}
+                placeholder="0" 
+                className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600" 
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-5">
+            <div>
               <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Engagement Rate</label>
               <input 
                 type="text" 
@@ -525,6 +612,25 @@ export default function ContentEngine() {
                 className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600" 
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Main Metric</label>
+            <input 
+              type="text" 
+              value={logMainMetric}
+              onChange={(e) => setLogMainMetric(e.target.value)}
+              placeholder="Key takeaway..." 
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Optional Data / Notes</label>
+            <textarea 
+              value={logOptionalData}
+              onChange={(e) => setLogOptionalData(e.target.value)}
+              placeholder="Additional insights..." 
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600 h-20 resize-none" 
+            />
           </div>
           <Button type="submit" className="w-full mt-6" isLoading={isLoggingPost}>
             <Send className="w-5 h-5 mr-2" />

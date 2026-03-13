@@ -34,7 +34,7 @@ const initialLeads: Lead[] = [
 
 const columns = ['Target Identified', 'Contacted', 'Replied', 'Meeting/Pitch', 'Closed', 'Failed'] as const;
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateId = () => crypto.randomUUID();
 
 export default function OutreachCRM() {
   const { socket, user, users, settings } = useAppContext();
@@ -130,7 +130,7 @@ export default function OutreachCRM() {
     await new Promise(r => setTimeout(r, 600)); // Simulate network request
     
     const newLead: Lead = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       name: newTargetName,
       platform: newTargetPlatform,
       status: 'Target Identified',
