@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-me';
 
@@ -102,12 +103,12 @@ export async function POST(req: Request) {
         const existingPost = db.prepare('SELECT id FROM posts WHERE id = ?').get(payload.id);
         const postCreatedAt = payload.createdAt || new Date().toISOString();
         if (existingPost) {
-          db.prepare('UPDATE posts SET title=?, platform=?, status=?, author=?, userId=?, userName=?, views=?, likes=?, shares=?, comments=?, engagement=?, createdAt=?, scheduledFor=?, telegramJoins=?, impressions=?, linkClicks=?, watchTime=?, mainMetric=?, optionalData=? WHERE id=?').run(
-            payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.likes || 0, payload.shares || 0, payload.comments || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0, payload.linkClicks || 0, payload.watchTime || 0, payload.mainMetric || '', payload.optionalData || '', payload.id
+          db.prepare('UPDATE posts SET title=?, platform=?, status=?, author=?, userId=?, userName=?, views=?, likes=?, shares=?, comments=?, engagement=?, createdAt=?, scheduledFor=?, telegramJoins=?, impressions=?, linkClicks=?, watchTime=?, reactions=?, mainMetric=?, optionalData=? WHERE id=?').run(
+            payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.likes || 0, payload.shares || 0, payload.comments || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0, payload.linkClicks || 0, payload.watchTime || 0, payload.reactions || 0, payload.mainMetric || '', payload.optionalData || '', payload.id
           );
         } else {
-          db.prepare('INSERT INTO posts (id, title, platform, status, author, userId, userName, views, likes, shares, comments, engagement, createdAt, scheduledFor, telegramJoins, impressions, linkClicks, watchTime, mainMetric, optionalData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-            payload.id, payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.likes || 0, payload.shares || 0, payload.comments || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0, payload.linkClicks || 0, payload.watchTime || 0, payload.mainMetric || '', payload.optionalData || ''
+          db.prepare('INSERT INTO posts (id, title, platform, status, author, userId, userName, views, likes, shares, comments, engagement, createdAt, scheduledFor, telegramJoins, impressions, linkClicks, watchTime, reactions, mainMetric, optionalData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+            payload.id, payload.title, payload.platform, payload.status, payload.author, payload.userId, payload.userName, payload.views || 0, payload.likes || 0, payload.shares || 0, payload.comments || 0, payload.engagement || '', postCreatedAt, payload.scheduledFor || null, payload.telegramJoins || 0, payload.impressions || 0, payload.linkClicks || 0, payload.watchTime || 0, payload.reactions || 0, payload.mainMetric || '', payload.optionalData || ''
           );
         }
         break;

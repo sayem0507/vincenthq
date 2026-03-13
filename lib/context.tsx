@@ -93,24 +93,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         
         // Update current user if it changed
-        if (user) {
-          const updatedCurrentUser = data.users?.find((u: User) => u.id === user.id);
+        setUser(prevUser => {
+          if (!prevUser) return prevUser;
+          const updatedCurrentUser = data.users?.find((u: User) => u.id === prevUser.id);
           if (updatedCurrentUser) {
-            // Create copies without lastActive to prevent infinite loops since lastActive changes on every request
             const { lastActive: _new, ...newUserData } = updatedCurrentUser as any;
-            const { lastActive: _old, ...oldUserData } = user as any;
+            const { lastActive: _old, ...oldUserData } = prevUser as any;
             
-            if (JSON.stringify(newUserData) !== JSON.stringify(oldUserData)) {
-              setUser(updatedCurrentUser);
+            // Compare relevant fields to avoid infinite loops due to key order
+            const hasChanged = 
+              newUserData.id !== oldUserData.id ||
+              newUserData.name !== oldUserData.name ||
+              newUserData.email !== oldUserData.email ||
+              newUserData.role !== oldUserData.role ||
+              newUserData.avatar !== oldUserData.avatar ||
+              newUserData.xp !== oldUserData.xp;
+
+            if (hasChanged) {
               localStorage.setItem('user', JSON.stringify(updatedCurrentUser));
+              return updatedCurrentUser;
             }
           }
-        }
+          return prevUser;
+        });
       }
     } catch (e) {
       console.error('Failed to fetch data', e);
     }
-  }, [user]);
+  }, []);
 
   // Fake socket for Vercel compatibility (REST + Polling)
   const socket = useMemo(() => {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import crypto from 'crypto';
 
 export async function POST(req: Request) {
   try {
@@ -16,13 +17,14 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(bytes);
 
     // Create uploads directory if it doesn't exist
-    const uploadDir = join(process.cwd(), 'uploads');
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+    const uploadDir = isVercel ? join('/tmp', 'uploads') : join(process.cwd(), 'uploads');
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true });
     }
 
     // Create unique filename
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+    const uniqueSuffix = `${Date.now()}-${crypto.randomUUID()}`;
     const filename = `${uniqueSuffix}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const path = join(uploadDir, filename);
 

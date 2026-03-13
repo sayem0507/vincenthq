@@ -6,7 +6,8 @@ import { existsSync } from 'fs';
 export async function GET(req: Request, { params }: { params: Promise<{ filename: string }> }) {
   try {
     const { filename } = await params;
-    const uploadDir = join(process.cwd(), 'uploads');
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+    const uploadDir = isVercel ? join('/tmp', 'uploads') : join(process.cwd(), 'uploads');
     const filePath = join(uploadDir, filename);
 
     if (!existsSync(filePath)) {

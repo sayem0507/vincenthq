@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Send, Image as ImageIcon, X, Users, MessageSquare, Hash, Circle } from 'lucide-react';
+import { Send, Image as ImageIcon, X, Users, MessageSquare, Hash, Circle, Volume2 } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useAppContext } from '@/lib/context';
 import Image from 'next/image';
@@ -13,8 +13,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [activeChannel, setActiveChannel] = useState<string>('general'); // 'general', 'daily_updates', or userId
-  
+  const [activeChannel, setActiveChannel] = useState<string>('general'); // 'general', 'random', 'voice_general', or userId
+
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +71,7 @@ export default function ChatPage() {
     if ((!newMessage.trim() && !imagePreview) || !user) return;
 
     const messageData = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       senderId: user.id,
       senderName: user.name,
       senderAvatar: user.avatar,
@@ -155,7 +155,11 @@ export default function ChatPage() {
               <p className="text-xs font-semibold text-[#949BA4] uppercase tracking-wide group-hover:text-zinc-300 transition-colors">Voice Channels</p>
             </div>
             <div className="space-y-[2px] px-2">
-              <VoiceRoom channelId="general" />
+              <VoiceRoom 
+                channelId="general" 
+                isActive={activeChannel === 'voice_general'} 
+                onJoin={() => setActiveChannel('voice_general')} 
+              />
             </div>
           </div>
 
@@ -219,6 +223,14 @@ export default function ChatPage() {
               </div>
             </>
           )}
+          {activeChannel === 'voice_general' && (
+            <>
+              <Volume2 className="w-6 h-6 text-emerald-400 mr-2" />
+              <div>
+                <h3 className="font-bold text-white text-base">Voice Channel</h3>
+              </div>
+            </>
+          )}
           {activeUser && (
             <>
               <div className="relative w-8 h-8 rounded-full overflow-hidden mr-3 flex-shrink-0">
@@ -232,7 +244,12 @@ export default function ChatPage() {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        {activeChannel === 'voice_general' ? (
+          <div id="voice-video-container" className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#1E1F22] flex flex-col justify-center items-center">
+            {/* Portal target for VoiceRoom videos */}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {filteredMessages.map((msg, idx) => {
             const isMe = msg.senderId === user?.id;
             const senderId = msg.senderId;
@@ -298,59 +315,62 @@ export default function ChatPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Input Area */}
-        <div className="px-4 pb-6 pt-2">
-          <div className="bg-[#383A40] rounded-lg p-2">
-            {imagePreview && (
-              <div className="mb-3 relative inline-block p-2 bg-[#2B2D31] rounded-lg">
-                <div className="relative w-32 h-32 rounded-lg overflow-hidden">
-                  <Image src={imagePreview} alt="Preview" width={128} height={128} className="w-full h-full object-cover" />
+        {activeChannel !== 'voice_general' && (
+          <div className="px-4 pb-6 pt-2">
+            <div className="bg-[#383A40] rounded-lg p-2">
+              {imagePreview && (
+                <div className="mb-3 relative inline-block p-2 bg-[#2B2D31] rounded-lg">
+                  <div className="relative w-32 h-32 rounded-lg overflow-hidden">
+                    <Image src={imagePreview} alt="Preview" width={128} height={128} className="w-full h-full object-cover" />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setImagePreview(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="absolute -top-2 -right-2 bg-[#F23F42] text-white rounded-full p-1 shadow-lg hover:bg-[#DA373C] transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setImagePreview(null);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                  }}
-                  className="absolute -top-2 -right-2 bg-[#F23F42] text-white rounded-full p-1 shadow-lg hover:bg-[#DA373C] transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <form onSubmit={sendMessage} className="flex items-center gap-2">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-[#B5BAC1] hover:text-[#DBDEE1] rounded-full transition-colors flex-shrink-0 bg-[#4E5058] hover:bg-[#6D6F78]"
-              >
-                <ImageIcon className="w-5 h-5" />
-              </button>
-              <div className="flex-1 relative">
-                <textarea
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage(e);
-                    }
-                  }}
-                  placeholder={`Message #${activeChannel === 'general' ? 'general' : activeChannel === 'random' ? 'random' : activeUser?.name}`}
-                  className="w-full bg-transparent border-none px-2 py-2 text-[#DBDEE1] placeholder:text-[#949BA4] focus:outline-none resize-none max-h-32 min-h-[40px] leading-relaxed"
-                  rows={1}
+              )}
+              <form onSubmit={sendMessage} className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
                 />
-              </div>
-            </form>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 text-[#B5BAC1] hover:text-[#DBDEE1] rounded-full transition-colors flex-shrink-0 bg-[#4E5058] hover:bg-[#6D6F78]"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                </button>
+                <div className="flex-1 relative">
+                  <textarea
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage(e);
+                      }
+                    }}
+                    placeholder={`Message #${activeChannel === 'general' ? 'general' : activeChannel === 'random' ? 'random' : activeUser?.name}`}
+                    className="w-full bg-transparent border-none px-2 py-2 text-[#DBDEE1] placeholder:text-[#949BA4] focus:outline-none resize-none max-h-32 min-h-[40px] leading-relaxed"
+                    rows={1}
+                  />
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

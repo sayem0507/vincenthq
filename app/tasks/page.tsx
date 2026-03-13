@@ -84,7 +84,7 @@ export default function TasksPage() {
     const interval = setInterval(() => {
       if (Math.random() > 0.7) {
         setNotifications(prev => [{
-          id: Math.random().toString(),
+          id: crypto.randomUUID(),
           text: `Jordan commented on "Implement Auth"`,
           time: new Date()
         }, ...prev]);
@@ -118,7 +118,7 @@ export default function TasksPage() {
     
     try {
       const newTask: Task = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         title: newTaskTitle,
         status: 'Todo',
         assignee: newTaskAssignee || user.name,
@@ -150,7 +150,7 @@ export default function TasksPage() {
       
       if (notificationsEnabled) {
         setNotifications(prev => [{
-          id: Math.random().toString(),
+          id: crypto.randomUUID(),
           text: `New task "${newTask.title}" created.`,
           time: new Date()
         }, ...prev]);
@@ -210,7 +210,7 @@ export default function TasksPage() {
       // Add notification
       if (notificationsEnabled) {
         setNotifications(prev => [{
-          id: Math.random().toString(),
+          id: crypto.randomUUID(),
           text: `You completed "${task.title}" and earned +${task.xpReward} XP!`,
           time: new Date()
         }, ...prev]);
@@ -223,7 +223,7 @@ export default function TasksPage() {
     if (!selectedTask || !newComment || !user) return;
 
     const comment: Comment = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       author: user.name,
       text: newComment,
       timestamp: new Date()
@@ -237,7 +237,7 @@ export default function TasksPage() {
     // Check for mentions
     if (newComment.includes('@') && notificationsEnabled) {
       setNotifications(prev => [{
-        id: Math.random().toString(),
+        id: crypto.randomUUID(),
         text: `You mentioned someone in "${selectedTask.title}"`,
         time: new Date()
       }, ...prev]);
@@ -791,7 +791,7 @@ export default function TasksPage() {
                       const input = e.currentTarget;
                       if (!input.value.trim()) return;
                       const newSubtask: Subtask = {
-                        id: Math.random().toString(36).substr(2, 9),
+                        id: crypto.randomUUID(),
                         title: input.value.trim(),
                         completed: false
                       };
@@ -809,7 +809,7 @@ export default function TasksPage() {
                     const input = document.getElementById('new-subtask-input') as HTMLInputElement;
                     if (!input || !input.value.trim()) return;
                     const newSubtask: Subtask = {
-                      id: Math.random().toString(36).substr(2, 9),
+                      id: crypto.randomUUID(),
                       title: input.value.trim(),
                       completed: false
                     };

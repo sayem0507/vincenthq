@@ -4,10 +4,12 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 
-// Always use local database.sqlite to ensure data is persisted in the workspace
-const dbPath = path.join(process.cwd(), 'database.sqlite');
+// Use /tmp on Vercel to avoid read-only filesystem errors
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+const dbPath = isVercel ? path.join('/tmp', 'database.sqlite') : path.join(process.cwd(), 'database.sqlite');
 
 const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
 
 // Initialize DB
 db.exec(`
@@ -74,9 +76,20 @@ db.exec(`
     impressions INTEGER DEFAULT 0,
     linkClicks INTEGER DEFAULT 0,
     watchTime INTEGER DEFAULT 0,
+    reactions INTEGER DEFAULT 0,
     mainMetric TEXT,
     optionalData TEXT
   );
+`);
+
+try {
+  db.exec('ALTER TABLE posts ADD COLUMN reactions INTEGER DEFAULT 0;');
+} catch (e) {
+  // Ignore if column already exists
+}
+
+db.exec(`
+
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT

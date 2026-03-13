@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, PhoneOff, Phone, Volume2, Monitor, AlertCircle, Video, VideoOff } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Phone, Volume2, Monitor, AlertCircle, Video, VideoOff, Users } from 'lucide-react';
 import { useAppContext } from '@/lib/context';
 import Image from 'next/image';
 import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
+import { createPortal } from 'react-dom';
 
 // Sub-component for volume visualization
 function VolumeIndicator({ stream, isMuted }: { stream: MediaStream | null, isMuted?: boolean }) {
@@ -17,7 +18,7 @@ function VolumeIndicator({ stream, isMuted }: { stream: MediaStream | null, isMu
   useEffect(() => {
     let isMounted = true;
 
-    if (!stream || isMuted) {
+    if (!stream || isMuted || stream.getAudioTracks().length === 0) {
       const reset = () => {
         if (isMounted) setVolume(0);
       };
@@ -76,7 +77,7 @@ function VolumeIndicator({ stream, isMuted }: { stream: MediaStream | null, isMu
   );
 }
 
-function VideoPlayer({ stream, isLocal }: { stream: MediaStream | null, isLocal: boolean }) {
+function VideoPlayer({ stream, isLocal, isScreenShare }: { stream: MediaStream | null, isLocal: boolean, isScreenShare?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -88,19 +89,24 @@ function VideoPlayer({ stream, isLocal }: { stream: MediaStream | null, isLocal:
   if (!stream || stream.getVideoTracks().length === 0) return null;
 
   return (
-    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden mt-2 border border-white/10">
+    <div className="relative w-full h-full bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={isLocal}
-        className="w-full h-full object-contain"
+        className={`w-full h-full ${isScreenShare ? 'object-contain' : 'object-cover'}`}
       />
+      {isScreenShare && (
+        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-white flex items-center">
+          <Monitor className="w-3 h-3 mr-1" /> Screen
+        </div>
+      )}
     </div>
   );
 }
 
-export function VoiceRoom({ channelId }: { channelId: string }) {
+export function VoiceRoom({ channelId, isActive, onJoin }: { channelId: string, isActive?: boolean, onJoin?: () => void }) {
   const { user } = useAppContext();
   const [inVoice, setInVoice] = useState(false);
   const [voiceUsers, setVoiceUsers] = useState<any[]>([]);
@@ -109,16 +115,22 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
   const [isSharingCamera, setIsSharingCamera] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [socketId, setSocketId] = useState<string | null>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isActive) {
+      const target = document.getElementById('voice-video-container');
+      requestAnimationFrame(() => setPortalTarget(target));
+    } else {
+      requestAnimationFrame(() => setPortalTarget(null));
+    }
+  }, [isActive, inVoice]);
   
   const socketRef = useRef<Socket | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<{ [socketId: string]: RTCPeerConnection }>({});
   const audioRefs = useRef<{ [socketId: string]: HTMLAudioElement }>({});
-
-  const updateVoiceUserStream = useCallback((socketId: string, stream: MediaStream | null) => {
-    setVoiceUsers(prev => prev.map(u => u.socketId === socketId ? { ...u, stream } : u));
-  }, []);
 
   const leaveVoice = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -158,7 +170,7 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
       if (socket) {
         socket.emit('join_voice', channelId);
         if (user) {
-          setVoiceUsers([{ socketId: socket.id, ...user, isMuted: false, stream }]);
+          setVoiceUsers([{ socketId: socket.id, ...user, isMuted: false, streams: [stream] }]);
         }
       }
     } catch (err) {
@@ -169,16 +181,34 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
 
   const toggleCamera = async () => {
     if (isSharingCamera) {
-      streamRef.current?.getVideoTracks().forEach(t => t.stop());
+      streamRef.current?.getVideoTracks().forEach(t => {
+        t.stop();
+        streamRef.current?.removeTrack(t);
+      });
       setIsSharingCamera(false);
-      Object.values(peersRef.current).forEach(pc => {
+      
+      Object.entries(peersRef.current).forEach(async ([targetSocketId, pc]) => {
         const senders = pc.getSenders();
         senders.forEach(sender => {
-          if (sender.track?.kind === 'video') pc.removeTrack(sender);
+          if (sender.track?.kind === 'video' && !screenStreamRef.current?.getTracks().includes(sender.track)) {
+            pc.removeTrack(sender);
+          }
         });
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socketRef.current?.emit('voice_signal', { to: targetSocketId, signal: pc.localDescription });
+        } catch (err) {
+          console.error("Error renegotiating after stopping camera", err);
+        }
       });
-      // Update local user stream in state
-      setVoiceUsers(prev => prev.map(u => u.socketId === socketId ? { ...u, stream: streamRef.current } : u));
+      
+      setVoiceUsers(prev => prev.map(u => {
+        if (u.socketId === socketId) {
+          return { ...u, streams: [streamRef.current, screenStreamRef.current].filter(Boolean) };
+        }
+        return u;
+      }));
       return;
     }
 
@@ -194,17 +224,50 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
       
       setIsSharingCamera(true);
 
-      Object.values(peersRef.current).forEach(pc => {
+      Object.entries(peersRef.current).forEach(async ([targetSocketId, pc]) => {
         pc.addTrack(videoTrack, streamRef.current!);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socketRef.current?.emit('voice_signal', { to: targetSocketId, signal: pc.localDescription });
+        } catch (err) {
+          console.error("Error renegotiating camera", err);
+        }
       });
 
       videoTrack.onended = () => {
         setIsSharingCamera(false);
-        setVoiceUsers(prev => prev.map(u => u.socketId === socketId ? { ...u, stream: streamRef.current } : u));
+        
+        Object.entries(peersRef.current).forEach(async ([targetSocketId, pc]) => {
+          const senders = pc.getSenders();
+          senders.forEach(sender => {
+            if (sender.track === videoTrack) {
+              pc.removeTrack(sender);
+            }
+          });
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socketRef.current?.emit('voice_signal', { to: targetSocketId, signal: pc.localDescription });
+          } catch (err) {
+            console.error("Error renegotiating after camera ended", err);
+          }
+        });
+
+        setVoiceUsers(prev => prev.map(u => {
+          if (u.socketId === socketId) {
+            return { ...u, streams: [streamRef.current, screenStreamRef.current].filter(Boolean) };
+          }
+          return u;
+        }));
       };
       
-      // Update local user stream in state
-      setVoiceUsers(prev => prev.map(u => u.socketId === socketId ? { ...u, stream: streamRef.current } : u));
+      setVoiceUsers(prev => prev.map(u => {
+        if (u.socketId === socketId) {
+          return { ...u, streams: [streamRef.current, screenStreamRef.current].filter(Boolean) };
+        }
+        return u;
+      }));
     } catch (err) {
       console.error("Failed to share camera", err);
       setError("Camera access denied.");
@@ -214,16 +277,32 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
   const toggleScreenShare = async () => {
     if (isSharingScreen) {
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
-      screenStreamRef.current = null;
-      setIsSharingScreen(false);
-      Object.values(peersRef.current).forEach(pc => {
+      
+      Object.entries(peersRef.current).forEach(async ([targetSocketId, pc]) => {
         const senders = pc.getSenders();
         senders.forEach(sender => {
-          if (sender.track?.kind === 'video') pc.removeTrack(sender);
+          if (sender.track && screenStreamRef.current?.getTracks().includes(sender.track)) {
+            pc.removeTrack(sender);
+          }
         });
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socketRef.current?.emit('voice_signal', { to: targetSocketId, signal: pc.localDescription });
+        } catch (err) {
+          console.error("Error renegotiating after stopping screen share", err);
+        }
       });
-      // Update local user stream in state
-      setVoiceUsers(prev => prev.map(u => u.socketId === socketId ? { ...u, stream: streamRef.current } : u));
+      
+      screenStreamRef.current = null;
+      setIsSharingScreen(false);
+      
+      setVoiceUsers(prev => prev.map(u => {
+        if (u.socketId === socketId) {
+          return { ...u, streams: [streamRef.current].filter(Boolean) };
+        }
+        return u;
+      }));
       return;
     }
 
@@ -236,56 +315,56 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
       setIsSharingScreen(true);
 
       stream.getTracks().forEach(track => {
-        Object.values(peersRef.current).forEach(pc => {
+        Object.entries(peersRef.current).forEach(async ([targetSocketId, pc]) => {
           pc.addTrack(track, stream);
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socketRef.current?.emit('voice_signal', { to: targetSocketId, signal: pc.localDescription });
+          } catch (err) {
+            console.error("Error renegotiating screen share", err);
+          }
         });
       });
 
       stream.getVideoTracks()[0].onended = () => {
         setIsSharingScreen(false);
         screenStreamRef.current = null;
-        setVoiceUsers(prev => prev.map(u => u.socketId === socketId ? { ...u, stream: streamRef.current } : u));
+        
+        Object.entries(peersRef.current).forEach(async ([targetSocketId, pc]) => {
+          const senders = pc.getSenders();
+          senders.forEach(sender => {
+            if (sender.track && stream.getTracks().includes(sender.track)) {
+              pc.removeTrack(sender);
+            }
+          });
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socketRef.current?.emit('voice_signal', { to: targetSocketId, signal: pc.localDescription });
+          } catch (err) {
+            console.error("Error renegotiating after screen share ended", err);
+          }
+        });
+
+        setVoiceUsers(prev => prev.map(u => {
+          if (u.socketId === socketId) {
+            return { ...u, streams: [streamRef.current].filter(Boolean) };
+          }
+          return u;
+        }));
       };
       
-      // Update local user stream in state
-      setVoiceUsers(prev => prev.map(u => u.socketId === socketId ? { ...u, stream } : u));
+      setVoiceUsers(prev => prev.map(u => {
+        if (u.socketId === socketId) {
+          return { ...u, streams: [streamRef.current, stream].filter(Boolean) };
+        }
+        return u;
+      }));
     } catch (err) {
       console.error("Failed to share screen", err);
     }
   };
-
-  useEffect(() => {
-    if (!socketRef.current) {
-      const newSocket = io();
-      socketRef.current = newSocket;
-      
-      newSocket.on('connect', () => {
-        setSocketId(newSocket.id || null);
-        if (user) {
-          newSocket.emit('authenticate', user);
-        }
-      });
-    } else if (user && socketRef.current?.connected) {
-      socketRef.current.emit('authenticate', user);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach(t => t.stop());
-      }
-      if (socketRef.current) {
-        socketRef.current.emit('leave_voice', channelId);
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-      Object.values(peersRef.current).forEach(pc => pc.close());
-    };
-  }, [channelId]);
 
   const toggleMute = () => {
     if (streamRef.current) {
@@ -319,6 +398,9 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
         streamRef.current.getTracks().forEach(track => {
           pc.addTrack(track, streamRef.current!);
         });
+      } else {
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+        pc.addTransceiver('video', { direction: 'recvonly' });
       }
 
       if (screenStreamRef.current) {
@@ -336,20 +418,36 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
       pc.ontrack = (event) => {
         const stream = event.streams[0];
         
-        // We handle both audio and video tracks
         if (!audioRefs.current[targetSocketId]) {
           const audio = new Audio();
           audio.autoplay = true;
           audioRefs.current[targetSocketId] = audio;
         }
         
-        // If it's an audio track, attach to our hidden audio element
         if (event.track.kind === 'audio') {
           audioRefs.current[targetSocketId].srcObject = stream;
         }
         
-        // Update the user's stream so the VideoPlayer component can render it
-        updateVoiceUserStream(targetSocketId, stream);
+        stream.onremovetrack = () => {
+          if (stream.getTracks().length === 0) {
+            setVoiceUsers(prev => prev.map(u => {
+              if (u.socketId === targetSocketId) {
+                return { ...u, streams: (u.streams || []).filter((s: MediaStream) => s.id !== stream.id) };
+              }
+              return u;
+            }));
+          }
+        };
+        
+        setVoiceUsers(prev => prev.map(u => {
+          if (u.socketId === targetSocketId) {
+            const streams = u.streams || [];
+            if (!streams.find((s: MediaStream) => s.id === stream.id)) {
+              return { ...u, streams: [...streams, stream] };
+            }
+          }
+          return u;
+        }));
       };
 
       if (initiator) {
@@ -368,7 +466,7 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
       peersRef.current[joinedSocketId] = pc;
       setVoiceUsers(prev => {
         if (prev.some(u => u.socketId === joinedSocketId)) return prev;
-        return [...prev, { socketId: joinedSocketId, ...joinedUser, isMuted: false, stream: null }];
+        return [...prev, { socketId: joinedSocketId, ...joinedUser, isMuted: false, streams: [] }];
       });
     };
 
@@ -394,7 +492,7 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
         peersRef.current[from] = pc;
         setVoiceUsers(prev => {
           if (prev.some(u => u.socketId === from)) return prev;
-          return [...prev, { socketId: from, ...signalingUser, isMuted: false, stream: null }];
+          return [...prev, { socketId: from, ...signalingUser, isMuted: false, streams: [] }];
         });
       }
 
@@ -429,122 +527,258 @@ export function VoiceRoom({ channelId }: { channelId: string }) {
       socket.off('voice_signal', handleVoiceSignal);
       socket.off('voice_state_change', handleVoiceStateChange);
     };
-  }, [inVoice, updateVoiceUserStream]);
+  }, [inVoice]);
+
+  useEffect(() => {
+    if (!socketRef.current) {
+      const newSocket = io();
+      socketRef.current = newSocket;
+      
+      newSocket.on('connect', () => {
+        setSocketId(newSocket.id || null);
+        if (user) {
+          newSocket.emit('authenticate', user);
+        }
+      });
+    } else if (user && socketRef.current?.connected) {
+      socketRef.current.emit('authenticate', user);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      if (socketRef.current) {
+        socketRef.current.emit('leave_voice', channelId);
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      Object.values(peersRef.current).forEach(pc => pc.close());
+    };
+  }, [channelId]);
+
+  // Flatten streams for rendering in the grid
+  const gridItems = voiceUsers.flatMap(vu => {
+    const streams = vu.streams || [];
+    if (streams.length === 0) {
+      return [{ user: vu, stream: null, isScreenShare: false, id: `${vu.socketId}-empty` }];
+    }
+    return streams.map((stream: MediaStream, index: number) => {
+      // Determine if this stream is likely a screen share
+      // A simple heuristic: if it has video but no audio, or if it's the second stream
+      const hasVideo = stream.getVideoTracks().length > 0;
+      const isScreenShare = hasVideo && (index > 0 || stream.getVideoTracks()[0].label.toLowerCase().includes('screen'));
+      return { user: vu, stream, isScreenShare, id: `${vu.socketId}-${stream.id}` };
+    });
+  });
 
   return (
-    <div className="bg-[#1E1F22] border border-white/5 rounded-xl p-3 mb-4 shadow-xl">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex flex-col">
-          <h3 className="text-xs font-bold text-white flex items-center">
-            <Volume2 className="w-3 h-3 mr-1.5 text-emerald-400" />
-            Voice Channel
-          </h3>
-          {inVoice && (
-            <span className="text-[9px] text-emerald-400 font-medium flex items-center mt-0.5">
-              <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1 animate-pulse" />
-              Connected
-            </span>
+    <>
+      <div className="bg-[#1E1F22] border border-white/5 rounded-xl p-3 mb-4 shadow-xl cursor-pointer hover:bg-[#2B2D31] transition-colors" onClick={onJoin}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-col">
+            <h3 className="text-xs font-bold text-white flex items-center">
+              <Volume2 className="w-3 h-3 mr-1.5 text-emerald-400" />
+              Voice Channel
+            </h3>
+            {inVoice && (
+              <span className="text-[9px] text-emerald-400 font-medium flex items-center mt-0.5">
+                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1 animate-pulse" />
+                Connected
+              </span>
+            )}
+          </div>
+          
+          {!inVoice ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); joinVoice(); }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 rounded text-[10px] font-bold transition-all flex items-center shadow-lg shadow-emerald-500/20"
+            >
+              <Phone className="w-3 h-3 mr-1.5" />
+              Join
+            </button>
+          ) : (
+            <div className="flex items-center space-x-1" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={toggleCamera}
+                title="Share Camera"
+                className={`p-1.5 rounded transition-colors ${isSharingCamera ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
+              >
+                {isSharingCamera ? <Video className="w-3 h-3" /> : <VideoOff className="w-3 h-3" />}
+              </button>
+               <button
+                onClick={toggleScreenShare}
+                title="Share Screen"
+                className={`p-1.5 rounded transition-colors ${isSharingScreen ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
+              >
+                <Monitor className="w-3 h-3" />
+              </button>
+              <button
+                onClick={toggleMute}
+                className={`p-1.5 rounded transition-colors ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
+              >
+                {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+              </button>
+              <button
+                onClick={leaveVoice}
+                className="bg-red-500 hover:bg-red-600 text-white px-2 py-1.5 rounded text-[10px] font-bold transition-all flex items-center shadow-lg shadow-red-500/20 ml-1"
+              >
+                <PhoneOff className="w-3 h-3" />
+              </button>
+            </div>
           )}
         </div>
-        
-        {!inVoice ? (
-          <button
-            onClick={joinVoice}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 rounded text-[10px] font-bold transition-all flex items-center shadow-lg shadow-emerald-500/20"
-          >
-            <Phone className="w-3 h-3 mr-1.5" />
-            Join
-          </button>
-        ) : (
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={toggleCamera}
-              title="Share Camera"
-              className={`p-1.5 rounded transition-colors ${isSharingCamera ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
-            >
-              {isSharingCamera ? <Video className="w-3 h-3" /> : <VideoOff className="w-3 h-3" />}
-            </button>
-             <button
-              onClick={toggleScreenShare}
-              title="Share Screen"
-              className={`p-1.5 rounded transition-colors ${isSharingScreen ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
-            >
-              <Monitor className="w-3 h-3" />
-            </button>
-            <button
-              onClick={toggleMute}
-              className={`p-1.5 rounded transition-colors ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
-            >
-              {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
-            </button>
-            <button
-              onClick={leaveVoice}
-              className="bg-red-500 hover:bg-red-600 text-white px-2 py-1.5 rounded text-[10px] font-bold transition-all flex items-center shadow-lg shadow-red-500/20 ml-1"
-            >
-              <PhoneOff className="w-3 h-3" />
-            </button>
+
+        {error && (
+          <div className="flex items-center p-2 mb-2 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-[9px]">
+            <AlertCircle className="w-3 h-3 mr-1.5 flex-shrink-0" />
+            {error}
           </div>
         )}
+
+        <AnimatePresence>
+          {inVoice && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-2 overflow-hidden"
+            >
+              <div className="grid grid-cols-1 gap-2">
+                {voiceUsers.map((vu) => {
+                  const isLocal = vu.socketId === socketId;
+                  const mainStream = vu.streams?.[0] || null;
+                  
+                  return (
+                    <div key={vu.socketId} className="flex flex-col bg-white/5 rounded-lg p-2 border border-white/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center min-w-0">
+                          <div className="relative w-6 h-6 rounded-full overflow-hidden mr-2 border border-white/10 flex-shrink-0">
+                            <Image src={vu.avatar || 'https://i.pravatar.cc/150'} alt={vu.name || 'User'} fill className="object-cover" referrerPolicy="no-referrer" />
+                            {vu.isMuted && (
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <MicOff className="w-2.5 h-2.5 text-red-400" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] font-bold text-white truncate">{vu.name || 'Unknown'}</span>
+                            <VolumeIndicator 
+                              stream={mainStream} 
+                              isMuted={vu.isMuted}
+                            />
+                          </div>
+                        </div>
+                        {isLocal && (
+                          <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-tighter bg-white/5 px-1.5 py-0.5 rounded">You</span>
+                        )}
+                      </div>
+                      
+                      {/* Render video in sidebar only if portal is not active */}
+                      {!portalTarget && vu.streams?.map((stream: MediaStream, idx: number) => {
+                        const hasVideo = stream.getVideoTracks().length > 0;
+                        if (!hasVideo) return null;
+                        const isScreenShare = idx > 0 || stream.getVideoTracks()[0].label.toLowerCase().includes('screen');
+                        return (
+                          <div key={stream.id} className="mt-2 h-24">
+                            <VideoPlayer stream={stream} isLocal={isLocal} isScreenShare={isScreenShare} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+              {voiceUsers.length === 1 && (
+                <p className="text-[9px] text-zinc-500 italic text-center py-1">Waiting for others to join...</p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {error && (
-        <div className="flex items-center p-2 mb-2 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-[9px]">
-          <AlertCircle className="w-3 h-3 mr-1.5 flex-shrink-0" />
-          {error}
-        </div>
-      )}
-
-      <AnimatePresence>
-        {inVoice && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-2 overflow-hidden"
-          >
-            <div className="grid grid-cols-1 gap-2">
-              {voiceUsers.map((vu) => {
-                const isLocal = vu.socketId === socketId;
-                // Use local stream for local user, remote stream for remote user
-                const displayStream = vu.stream;
-                
-                return (
-                  <div key={vu.socketId} className="flex flex-col bg-white/5 rounded-lg p-2 border border-white/5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center min-w-0">
-                        <div className="relative w-6 h-6 rounded-full overflow-hidden mr-2 border border-white/10 flex-shrink-0">
-                          <Image src={vu.avatar || 'https://i.pravatar.cc/150'} alt={vu.name || 'User'} fill className="object-cover" referrerPolicy="no-referrer" />
-                          {vu.isMuted && (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <MicOff className="w-2.5 h-2.5 text-red-400" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[10px] font-bold text-white truncate">{vu.name || 'Unknown'}</span>
-                          <VolumeIndicator 
-                            stream={displayStream} 
-                            isMuted={vu.isMuted}
-                          />
-                        </div>
-                      </div>
-                      {isLocal && (
-                        <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-tighter bg-white/5 px-1.5 py-0.5 rounded">You</span>
-                      )}
-                    </div>
-                    
-                    {/* Render video if stream has video tracks */}
-                    <VideoPlayer stream={displayStream} isLocal={isLocal} />
-                  </div>
-                );
-              })}
+      {/* Portal for large video grid */}
+      {portalTarget && createPortal(
+        <div className="w-full h-full flex flex-col p-4">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <Volume2 className="w-6 h-6 mr-2 text-emerald-400" />
+              Voice Channel
+            </h2>
+            <div className="flex items-center space-x-2 bg-[#2B2D31] p-1.5 rounded-lg">
+              <button
+                onClick={toggleCamera}
+                className={`p-3 rounded-lg transition-colors ${isSharingCamera ? 'bg-blue-500/20 text-blue-400' : 'bg-[#383A40] text-zinc-300 hover:bg-[#4E5058] hover:text-white'}`}
+              >
+                {isSharingCamera ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={toggleScreenShare}
+                className={`p-3 rounded-lg transition-colors ${isSharingScreen ? 'bg-blue-500/20 text-blue-400' : 'bg-[#383A40] text-zinc-300 hover:bg-[#4E5058] hover:text-white'}`}
+              >
+                <Monitor className="w-5 h-5" />
+              </button>
+              <button
+                onClick={toggleMute}
+                className={`p-3 rounded-lg transition-colors ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-[#383A40] text-zinc-300 hover:bg-[#4E5058] hover:text-white'}`}
+              >
+                {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={leaveVoice}
+                className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg transition-all shadow-lg shadow-red-500/20 ml-2"
+              >
+                <PhoneOff className="w-5 h-5" />
+              </button>
             </div>
-            {voiceUsers.length === 1 && (
-              <p className="text-[9px] text-zinc-500 italic text-center py-1">Waiting for others to join...</p>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
+            {gridItems.map((item) => {
+              const isLocal = item.user.socketId === socketId;
+              const hasVideo = item.stream && item.stream.getVideoTracks().length > 0;
+
+              return (
+                <div key={item.id} className={`relative bg-[#2B2D31] rounded-2xl overflow-hidden border border-white/5 flex flex-col items-center justify-center group ${item.isScreenShare ? 'col-span-1 md:col-span-2 lg:col-span-2 row-span-2' : ''}`}>
+                  {hasVideo ? (
+                    <VideoPlayer stream={item.stream} isLocal={isLocal} isScreenShare={item.isScreenShare} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center w-full h-full min-h-[200px]">
+                      <div className="relative w-24 h-24 rounded-full overflow-hidden mb-4 border-4 border-[#1E1F22]">
+                        <Image src={item.user.avatar || 'https://i.pravatar.cc/150'} alt={item.user.name || 'User'} fill className="object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                      <VolumeIndicator stream={item.stream} isMuted={item.user.isMuted} />
+                    </div>
+                  )}
+                  
+                  <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/60 backdrop-blur-md px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center">
+                      <span className="text-sm font-bold text-white mr-2">{item.user.name || 'Unknown'}</span>
+                      {isLocal && <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter bg-white/10 px-1.5 py-0.5 rounded">You</span>}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {item.user.isMuted && <MicOff className="w-4 h-4 text-red-400" />}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {voiceUsers.length === 0 && (
+              <div className="col-span-full flex flex-col items-center justify-center text-zinc-500 h-full">
+                <Users className="w-16 h-16 mb-4 opacity-20" />
+                <p className="text-lg font-medium">No one is here yet</p>
+                <p className="text-sm">Join the voice channel to start talking</p>
+              </div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          </div>
+        </div>,
+        portalTarget
+      )}
+    </>
   );
 }
