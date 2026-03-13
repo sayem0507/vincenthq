@@ -7,7 +7,7 @@ import { Zap, Mail, Lock, User as UserIcon } from 'lucide-react';
 import { useAppContext } from '@/lib/context';
 
 export function AuthOverlay() {
-  const { user, setUser } = useAppContext();
+  const { user, setUser, socket } = useAppContext();
   const [mounted, setMounted] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -54,6 +54,10 @@ export function AuthOverlay() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
+      
+      if (!isLogin && socket) {
+        socket.emit('new_user_joined', data.user);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {

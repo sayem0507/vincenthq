@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookOpen, Search, Plus, FileText, Folder, ChevronRight, MoreVertical, ArrowLeft, UploadCloud, File, Download, Edit3, Trash2, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useAppContext } from '@/lib/context';
 import { Button } from '@/components/ui/button';
 
@@ -179,6 +180,18 @@ export default function DocsPage() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 className="mb-8 p-8 border-2 border-dashed border-emerald-500/30 rounded-3xl bg-emerald-500/5 text-center relative"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) {
+                    handleFileUpload({ target: { files: [file] } } as any);
+                  }
+                }}
               >
                 <button onClick={() => setIsUploading(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-white">
                   <X className="w-5 h-5" />
@@ -337,20 +350,35 @@ export default function DocsPage() {
                     />
                   ) : (
                     <div className="prose prose-invert prose-emerald max-w-none">
-                      {selectedDoc.content?.split('\n').map((line, i) => {
-                        if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold text-white mb-4">{line.replace('# ', '')}</h1>;
-                        if (line.startsWith('## ')) return <h2 key={i} className="text-2xl font-bold text-white mt-8 mb-4">{line.replace('## ', '')}</h2>;
-                        if (line.startsWith('- ')) return <li key={i} className="text-zinc-300 ml-4">{line.replace('- ', '')}</li>;
-                        if (line.trim() === '') return <br key={i} />;
-                        return <p key={i} className="text-zinc-300 mb-4">{line}</p>;
-                      })}
+                      <ReactMarkdown>{selectedDoc.content || ''}</ReactMarkdown>
                     </div>
                   )}
+                </div>
+              ) : selectedDoc.type === 'pdf' ? (
+                <div className="w-full h-full flex flex-col bg-white/[0.02] border border-white/5 rounded-2xl shadow-2xl overflow-hidden">
+                  <object 
+                    data={selectedDoc.fileUrl} 
+                    type="application/pdf"
+                    className="w-full h-full border-none"
+                  >
+                    <iframe 
+                      src={selectedDoc.fileUrl} 
+                      className="w-full h-full border-none"
+                      title={selectedDoc.title}
+                    >
+                      <div className="flex flex-col items-center justify-center h-full text-zinc-400">
+                        <p className="mb-4">Your browser does not support inline PDFs.</p>
+                        <a href={selectedDoc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">
+                          Download PDF
+                        </a>
+                      </div>
+                    </iframe>
+                  </object>
                 </div>
               ) : (
                 <div className="w-full max-w-4xl flex flex-col items-center justify-center text-center">
                   <div className="w-32 h-32 rounded-3xl bg-white/5 flex items-center justify-center mb-6 border border-white/10 shadow-2xl">
-                    {selectedDoc.type === 'pdf' ? <File className="w-16 h-16 text-red-400" /> : <FileText className="w-16 h-16 text-blue-400" />}
+                    <FileText className="w-16 h-16 text-blue-400" />
                   </div>
                   <h2 className="text-2xl font-bold text-white mb-2">{selectedDoc.title}</h2>
                   <p className="text-zinc-400 mb-8">This file type cannot be previewed directly in the browser.</p>

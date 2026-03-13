@@ -33,6 +33,10 @@ app.prepare().then(() => {
       }
     });
 
+    socket.on('new_user_joined', (user) => {
+      io.emit('user_added', user);
+    });
+
     socket.on('join_room', (room) => {
       socket.join(room);
     });

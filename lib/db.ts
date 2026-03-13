@@ -4,12 +4,8 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 
-// Use /tmp for Vercel compatibility, otherwise local directory
-const isProduction = process.env.NODE_ENV === 'production';
-// In this environment, we prefer the local database.sqlite if it exists
-const dbPath = (isProduction && !fs.existsSync('database.sqlite')) 
-  ? path.join(os.tmpdir(), 'database.sqlite') 
-  : 'database.sqlite';
+// Always use local database.sqlite to ensure data is persisted in the workspace
+const dbPath = path.join(process.cwd(), 'database.sqlite');
 
 const db = new Database(dbPath);
 
@@ -132,6 +128,8 @@ try { db.exec("ALTER TABLE leads ADD COLUMN userId TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE leads ADD COLUMN userName TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE posts ADD COLUMN userId TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE posts ADD COLUMN userName TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE documents ADD COLUMN type TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE documents ADD COLUMN fileUrl TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE messages ADD COLUMN channel TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE daily_updates ADD COLUMN likes TEXT DEFAULT '[]'"); } catch (e) {}
 try { db.exec("ALTER TABLE daily_updates ADD COLUMN comments TEXT DEFAULT '[]'"); } catch (e) {}

@@ -136,7 +136,14 @@ export default function FeedPage() {
             />
             {newPostImage && (
               <div className="relative mt-2 rounded-xl overflow-hidden border border-white/10 inline-block">
-                <img src={newPostImage} alt="Upload preview" className="max-h-64 object-contain" />
+                <Image 
+                  src={newPostImage} 
+                  alt="Upload preview" 
+                  width={500} 
+                  height={300} 
+                  className="max-h-64 w-auto object-contain" 
+                  unoptimized 
+                />
                 <button 
                   onClick={() => setNewPostImage(null)}
                   className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/80 rounded-full text-white transition-colors"
@@ -250,7 +257,14 @@ export default function FeedPage() {
 
               {post.imageUrl && (
                 <div className="relative rounded-xl overflow-hidden border border-white/10 mb-4">
-                  <img src={post.imageUrl} alt="Post attachment" className="w-full max-h-96 object-cover" />
+                  <Image 
+                    src={post.imageUrl} 
+                    alt="Post attachment" 
+                    width={800} 
+                    height={600} 
+                    className="w-full h-auto object-cover" 
+                    unoptimized 
+                  />
                 </div>
               )}
 

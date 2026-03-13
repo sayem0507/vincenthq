@@ -135,6 +135,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         }
         if (event === 'delete_user') setUsers(prev => prev.filter(u => u.id !== id));
+        if (event === 'user_added') {
+          setUsers(prev => {
+            if (!prev.find(u => u.id === payload.id)) {
+              return [...prev, payload];
+            }
+            return prev;
+          });
+        }
+        if (event === 'update_user') {
+          setUsers(prev => prev.map(u => u.id === payload.id ? { ...u, ...payload } : u));
+        }
         if (event === 'delete_post') setPosts(prev => prev.filter(p => p.id !== id));
         if (event === 'delete_lead') setLeads(prev => prev.filter(l => l.id !== id));
         if (event === 'delete_daily_update') setDailyUpdates(prev => prev.filter(u => u.id !== id));

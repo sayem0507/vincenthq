@@ -22,6 +22,12 @@ export default function AdminPanel() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('user');
 
+  const [userToEdit, setUserToEdit] = useState<string | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserAvatar, setEditUserAvatar] = useState('');
+  const [editUserRole, setEditUserRole] = useState('user');
+
   const [userToAddXP, setUserToAddXP] = useState<string | null>(null);
   const [xpAmount, setXpAmount] = useState('');
 
@@ -77,6 +83,20 @@ export default function AdminPanel() {
     setNewUserEmail('');
     setNewUserPassword('');
     setNewUserRole('user');
+  };
+
+  const handleEditUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (userToEdit) {
+      socket?.emit('update_user', {
+        id: userToEdit,
+        name: editUserName,
+        email: editUserEmail,
+        role: editUserRole,
+        avatar: editUserAvatar
+      });
+      setUserToEdit(null);
+    }
   };
 
   const handleAddXP = (e: React.FormEvent) => {
@@ -219,11 +239,24 @@ export default function AdminPanel() {
                   </td>
                   <td className="py-4 pr-4 text-right space-x-2">
                     <button 
-                      onClick={() => setUserToAddXP(u.id)}
-                      className="p-2 bg-white/5 hover:bg-white/10 text-zinc-300 rounded-lg transition-colors"
-                      title="Add XP"
+                      onClick={() => {
+                        setUserToEdit(u.id);
+                        setEditUserName(u.name);
+                        setEditUserEmail(u.email);
+                        setEditUserAvatar(u.avatar);
+                        setEditUserRole(u.role);
+                      }}
+                      className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors border border-blue-500/20"
+                      title="Edit Profile"
                     >
                       <Edit className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => setUserToAddXP(u.id)}
+                      className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors border border-emerald-500/20"
+                      title="Add XP"
+                    >
+                      <Plus className="w-4 h-4" />
                     </button>
                     {u.id !== user.id && (
                       <button 
@@ -507,6 +540,86 @@ export default function AdminPanel() {
           <Button type="submit" className="w-full mt-6 bg-purple-600 hover:bg-purple-500 text-white">
             Create User
           </Button>
+        </form>
+      </Modal>
+
+      {/* Edit User Modal */}
+      <Modal isOpen={!!userToEdit} onClose={() => setUserToEdit(null)} title="Edit User Profile">
+        <form onSubmit={handleEditUser} className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Name</label>
+            <input 
+              type="text" 
+              value={editUserName}
+              onChange={(e) => setEditUserName(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all" 
+              required 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Email</label>
+            <input 
+              type="email" 
+              value={editUserEmail}
+              onChange={(e) => setEditUserEmail(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all" 
+              required 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Avatar URL</label>
+            <div className="flex space-x-2">
+              <input 
+                type="text" 
+                value={editUserAvatar}
+                onChange={(e) => setEditUserAvatar(e.target.value)}
+                className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all" 
+                required 
+              />
+              <label className="cursor-pointer bg-white/10 hover:bg-white/20 text-white px-4 py-3 rounded-xl transition-colors flex items-center justify-center">
+                <span className="text-xs font-bold">Upload</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      try {
+                        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                        const data = await res.json();
+                        if (data.url) setEditUserAvatar(data.url);
+                      } catch (err) {
+                        console.error('Upload failed', err);
+                      }
+                    }
+                  }} 
+                />
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-2">Role</label>
+            <select 
+              value={editUserRole}
+              onChange={(e) => setEditUserRole(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all"
+            >
+              <option value="user" className="bg-slate-900">User</option>
+              <option value="editor" className="bg-slate-900">Editor</option>
+              <option value="admin" className="bg-slate-900">Admin</option>
+            </select>
+          </div>
+          <div className="flex space-x-3 justify-end mt-6">
+            <Button type="button" variant="secondary" onClick={() => setUserToEdit(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white">
+              Save Changes
+            </Button>
+          </div>
         </form>
       </Modal>
 

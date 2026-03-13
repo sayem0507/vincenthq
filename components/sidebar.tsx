@@ -33,6 +33,7 @@ export function Sidebar() {
     { name: settings?.section_dashboard || 'Command Center', href: '/', icon: LayoutDashboard },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: settings?.section_leads || 'Outreach CRM', href: '/leads', icon: Users },
+    { name: 'Social Growth', href: '/social-growth', icon: Target },
     { name: settings?.section_content || 'Content Engine', href: '/content', icon: Calendar },
     { name: settings?.section_tasks || 'Tasks & Projects', href: '/tasks', icon: CheckSquare },
     { name: 'Calendar', href: '/calendar', icon: CalendarDays },
@@ -43,8 +44,8 @@ export function Sidebar() {
   ];
 
   return (
-    <div className="flex h-full w-64 flex-col bg-white/[0.02] backdrop-blur-xl border-r border-white/10 z-20 relative">
-      <div className="flex h-16 items-center justify-between px-6 border-b border-white/10">
+    <div className="flex h-full w-64 flex-col bg-zinc-950/80 backdrop-blur-2xl border-r border-white/5 z-20 relative shadow-2xl">
+      <div className="flex h-16 items-center justify-between px-6 border-b border-white/5 bg-black/20">
         <div className="flex items-center">
           <svg viewBox="0 0 24 24" className="h-7 w-7 mr-2 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]" fill="none">
             <defs>
@@ -116,14 +117,14 @@ export function Sidebar() {
               className={cn(
                 'group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300',
                 isActive
-                  ? 'bg-white/10 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                  ? 'bg-blue-500/10 text-blue-400 shadow-[inset_0_1px_1px_rgba(59,130,246,0.2)] border border-blue-500/20'
                   : 'text-zinc-400 hover:bg-white/[0.06] hover:text-white'
               )}
             >
               <item.icon
                 className={cn(
                   'mr-3 h-5 w-5 flex-shrink-0 transition-colors duration-300',
-                  isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                  isActive ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]' : 'text-zinc-500 group-hover:text-zinc-300'
                 )}
                 aria-hidden="true"
               />

@@ -54,6 +54,7 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newComment, setNewComment] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState('All');
   const popupCounter = useRef(0);
   
   const [error, setError] = useState<string | null>(null);
@@ -259,13 +260,47 @@ export default function TasksPage() {
     }
   };
 
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData('taskId', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.currentTarget as HTMLElement;
+    target.classList.add('bg-white/[0.08]');
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    const target = e.currentTarget as HTMLElement;
+    target.classList.remove('bg-white/[0.08]');
+  };
+
+  const handleDrop = (e: React.DragEvent, newStatus: Task['status']) => {
+    e.preventDefault();
+    const target = e.currentTarget as HTMLElement;
+    target.classList.remove('bg-white/[0.08]');
+    const taskId = e.dataTransfer.getData('taskId');
+    if (taskId) {
+      handleStatusChange(taskId, newStatus);
+    }
+  };
+
   const filteredTasks = tasks.filter(t => {
     const query = searchQuery.toLowerCase();
-    return (
-      t.title.toLowerCase().includes(query) ||
+    const matchesQuery = t.title.toLowerCase().includes(query) ||
       t.assignee.toLowerCase().includes(query) ||
-      t.status.toLowerCase().includes(query)
-    );
+      t.status.toLowerCase().includes(query);
+    const matchesAssignee = filterAssignee === 'All' || t.assignee === filterAssignee;
+    return matchesQuery && matchesAssignee;
   });
 
   const renderTaskCard = (task: Task) => {
@@ -276,13 +311,21 @@ export default function TasksPage() {
     const isLocked = uncompletedDeps.length > 0;
 
     return (
-      <motion.div 
+      <motion.div
         key={task.id}
         layoutId={task.id}
+        draggable={!isLocked}
+        onDragStart={(e: any) => handleDragStart(e, task.id)}
+        onDragEnd={handleDragEnd}
         initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
+        animate={{ 
+          opacity: draggedTaskId === task.id ? 0.4 : 1, 
+          scale: draggedTaskId === task.id ? 1.05 : 1,
+          rotate: draggedTaskId === task.id ? 2 : 0
+        }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
         onClick={() => setSelectedTask(task)}
-        className={`bg-white/[0.04] border border-white/10 rounded-2xl p-5 hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 cursor-pointer shadow-lg relative overflow-hidden ${isLocked ? 'opacity-60' : ''}`}
+        className={`bg-white/[0.04] border border-white/10 rounded-2xl p-5 hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 shadow-lg relative overflow-hidden group ${isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'} ${draggedTaskId === task.id ? 'z-50 ring-2 ring-blue-500/50' : ''}`}
       >
         <div className="flex justify-between items-start mb-3">
           <h4 className="text-lg font-bold text-white pr-6">{task.title}</h4>
@@ -403,6 +446,18 @@ export default function TasksPage() {
               className="w-full bg-white/[0.05] border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
             />
           </div>
+          <div className="relative w-full sm:w-48">
+            <select
+              value={filterAssignee}
+              onChange={(e) => setFilterAssignee(e.target.value)}
+              className="w-full bg-white/[0.05] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none"
+            >
+              <option value="All" className="bg-slate-900">All Team Members</option>
+              {users.map(u => (
+                <option key={u.id} value={u.name} className="bg-slate-900">{u.name}</option>
+              ))}
+            </select>
+          </div>
           <Button onClick={() => setIsNewTaskModalOpen(true)} className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             New Task
@@ -438,8 +493,13 @@ export default function TasksPage() {
         {/* Kanban Board */}
         <div className="flex-1 overflow-x-auto pb-4">
           <div className="flex space-x-6 min-w-max h-full">
-            {['Todo', 'In Progress', 'Done'].map((status) => (
-              <div key={status} className="w-80 flex flex-col bg-white/[0.02] backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl">
+            {(['Todo', 'In Progress', 'Done'] as const).map((status) => (
+              <div 
+                key={status} 
+                className="w-80 flex flex-col bg-white/[0.02] backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, status)}
+              >
                 <div className="p-5 border-b border-white/5 flex justify-between items-center">
                   <h3 className="font-bold text-white tracking-wide">{status}</h3>
                   <span className="bg-white/10 text-zinc-300 text-xs font-bold px-2.5 py-1 rounded-full border border-white/10">
@@ -447,7 +507,9 @@ export default function TasksPage() {
                   </span>
                 </div>
                 <div className="p-4 flex-1 overflow-y-auto space-y-4">
-                  {filteredTasks.filter(t => t.status === status).map(renderTaskCard)}
+                  <AnimatePresence>
+                    {filteredTasks.filter(t => t.status === status).map(renderTaskCard)}
+                  </AnimatePresence>
                 </div>
               </div>
             ))}
