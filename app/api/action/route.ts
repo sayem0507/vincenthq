@@ -14,7 +14,15 @@ export async function POST(req: Request) {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as any;
+    } catch (err: any) {
+      if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      throw err;
+    }
     
     const { action, payload } = await req.json();
 

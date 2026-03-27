@@ -80,6 +80,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           'Authorization': `Bearer ${token}`
         }
       });
+      
+      if (res.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+        return;
+      }
+      
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks || []);
@@ -209,7 +217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!token) return;
 
         try {
-          await fetch('/api/action', {
+          const res = await fetch('/api/action', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -217,6 +225,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             },
             body: JSON.stringify({ action: event, payload })
           });
+          
+          if (res.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+            return;
+          }
           
           // Refresh data immediately after mutation
           fetchData();
